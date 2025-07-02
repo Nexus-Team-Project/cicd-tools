@@ -12,7 +12,18 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout application code
+        uses: actions/checkout@v4
+        with:
+          path: app
+      
+      - name: Checkout cicd-tools templates
+        uses: actions/checkout@v4
+        with:
+          repository: Nexus-Team-Project/cicd-tools
+          ref: build-basic-cicd
+          path: cicd-tools
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Azure Login
         uses: azure/login@v1.4.6
@@ -25,21 +36,20 @@ jobs:
         run: |
           az aks get-credentials --resource-group ${{ vars.RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }}
 
-      - name: Deploy application
+      - name: Process and apply K8s templates
         run: |
-          # Create or update deployment
-          kubectl create deployment ${{ github.event.repository.name }} \
-            --image=${{ vars.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ github.event.repository.name }}:${{ env.IMAGE_TAG }} \
-            --namespace=${{ env.NAMESPACE }} \
-            --dry-run=client -o yaml | kubectl apply -f -
+          # Set variables for template substitution
+          export APP_NAME="${{ github.event.repository.name }}"
+          export IMAGE_NAME="${{ vars.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ github.event.repository.name }}:${{ env.IMAGE_TAG }}"
+          export NAMESPACE="${{ env.NAMESPACE }}"
           
-          # Create or update service on port 3000
-          kubectl expose deployment ${{ github.event.repository.name }} \
-            --port=3000 \
-            --target-port=3000 \
-            --type=ClusterIP \
-            --namespace=${{ env.NAMESPACE }} \
-            --dry-run=client -o yaml | kubectl apply -f -
+          # Process templates (using envsubst for variable substitution)
+          for template in cicd-tools/k8s/*.yaml; do
+            if [ -f "$template" ]; then
+              echo "Processing template: $template"
+              envsubst < "$template" | kubectl apply -f -
+            fi
+          done
 
       - name: Wait for deployment to be ready
         run: |
