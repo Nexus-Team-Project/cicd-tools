@@ -1,13 +1,13 @@
 name: Reusable Main CI/CD Pipeline
-
 on:
   workflow_call:
     secrets:
-      AZURE_CREDENTIALS:
+      AZURE_CLIENT_ID:
         required: true
-      ACR_LOGIN_SERVER:
+      AZURE_TENANT_ID:
         required: true
-
+      AZURE_SUBSCRIPTION_ID:
+        required: true
 jobs:
   # Call the build workflow
   build:
@@ -16,7 +16,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-
   # Deploy to AKS after successful build
   deploy:
     needs: build
