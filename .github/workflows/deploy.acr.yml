@@ -44,7 +44,9 @@ jobs:
           export NAMESPACE="${{ env.NAMESPACE }}"
           
           # Process templates (using envsubst for variable substitution)
+          ls -la cicd-tools/k8s/
           for template in cicd-tools/k8s/*.yaml; do
+            echo "$template"
             if [ -f "$template" ]; then
               echo "Processing template: $template"
               envsubst < "$template" | kubectl apply -f -
