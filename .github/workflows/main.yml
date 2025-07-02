@@ -1,10 +1,12 @@
-name: CI/CD Pipeline
+name: Reusable Main CI/CD Pipeline
 
 on:
-  push:
-    branches: ["feat/add-ci", "develop"]
-  pull_request:
-    branches: ["feat/add-ci"]
+  workflow_call:
+    secrets:
+      AZURE_CREDENTIALS:
+        required: true
+      ACR_LOGIN_SERVER:
+        required: true
 
 jobs:
   # Call the build workflow
