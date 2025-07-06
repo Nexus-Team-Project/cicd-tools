@@ -1,13 +1,21 @@
-name: Main CI/CD Pipeline Orchestrator
+# cicd-tools/.github/workflows/main.yml
+name: Reusable Main CI/CD Pipeline
 
 on:
   workflow_call:
+    # Define only the secrets that THIS reusable workflow (main.yml) needs as inputs
     secrets:
-      inherit
-    permissions:
-      contents: read
-      id-token: write
-      actions: write
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+      # GITHUB_TOKEN is required for checking out internal repos or performing Git operations
+      GITHUB_TOKEN:
+        required: true
+    # Remove 'secrets: inherit' from here
+    # Remove 'permissions:' from here
 
 jobs:
   evaluate_ci_cd_rules:
@@ -17,6 +25,9 @@ jobs:
       should_run_build: ${{ steps.get_rules.outputs.should_run_build }}
       should_run_deploy: ${{ steps.get_rules.outputs.should_run_deploy }}
       target_environment: ${{ steps.get_rules.outputs.target_environment }}
+    # Define permissions for this specific job if needed (e.g., contents: read for rules.yml checkout)
+    permissions:
+      contents: read
     steps:
       - name: Call Rules Workflow
         uses: ./.github/workflows/rules.yml
@@ -31,6 +42,9 @@ jobs:
     outputs:
       full_image_tag: ${{ steps.call_build_orchestrator.outputs.full_image_tag }}
       aks_namespace: ${{ steps.call_build_orchestrator.outputs.aks_namespace }}
+    permissions: # Define permissions for this job
+      contents: read
+      id-token: write # Needed if Azure Login happens within build-orchestrator or build.docker.yml
     steps:
       - name: Call Reusable Build Orchestrator Workflow
         id: call_build_orchestrator
@@ -40,11 +54,12 @@ jobs:
           repo_name: ${{ github.event.repository.name }}
           sha: ${{ github.sha }}
         secrets:
-          AZURE_CLIENT_ID: ${{ secrets.ORG_AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.ORG_AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.ORG_AZURE_SUBSCRIPTION_ID }}
-          ORG_ACR_NAME: ${{ secrets.ORG_ACR_NAME }}
-          ORG_ACR_RESOURCE_GROUP: ${{ secrets.ORG_ACR_RESOURCE_GROUP }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          # Pass common variables as secrets, as build-orchestrator.yml uses them in secrets context
+          ACR_NAME: ${{ secrets.ACR_NAME }}
+          ACR_RESOURCE_GROUP: ${{ secrets.ACR_RESOURCE_GROUP }}
 
 
   deploy_np:
@@ -54,20 +69,23 @@ jobs:
       needs.evaluate_ci_cd_rules.outputs.should_run_deploy == 'true' &&
       needs.evaluate_ci_cd_rules.outputs.target_environment == 'dev'
     runs-on: ubuntu-latest
+    permissions: # Define permissions for this job
+      contents: read
+      id-token: write # Needed for Azure Login
     steps:
       - name: Call Reusable Deploy ACR Workflow (Non-Production)
         uses: ./.github/workflows/deploy.acr.yml
         with:
           target_env_name: dev
           image_full_tag: ${{ needs.orchestrate_build.outputs.full_image_tag }}
-          resource_group: ${{ secrets.ORG_RESOURCE_GROUP_DEV }}
-          cluster_name: ${{ secrets.ORG_CLUSTER_DEV }} 
-          namespace: ${{ needs.orchestrate_build.outputs.aks_namespace }} 
+          resource_group: ${{ vars.RESOURCE_GROUP }}
+          cluster_name: ${{ vars.CLUSTER_NAME }}
+          namespace: ${{ needs.orchestrate_build.outputs.aks_namespace }}
         secrets:
-          AZURE_CLIENT_ID: ${{ secrets.ORG_AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.ORG_AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.ORG_AZURE_SUBSCRIPTION_ID }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pass GITHUB_TOKEN to deploy.acr.yml
 
 
   deploy_prod:
@@ -77,17 +95,20 @@ jobs:
       needs.evaluate_ci_cd_rules.outputs.should_run_deploy == 'true' &&
       needs.evaluate_ci_cd_rules.outputs.target_environment == 'production'
     runs-on: ubuntu-latest
+    permissions: # Define permissions for this job
+      contents: read
+      id-token: write # Needed for Azure Login
     steps:
       - name: Call Reusable Deploy ACR Workflow (Production)
         uses: ./.github/workflows/deploy.acr.yml
         with:
           target_env_name: production
           image_full_tag: ${{ needs.orchestrate_build.outputs.full_image_tag }}
-          resource_group: ${{ secrets.ORG_RESOURCE_GROUP_PROD }} 
-          cluster_name: ${{ secrets.ORG_CLUSTER_PROD }} 
-          namespace: ${{ needs.orchestrate_build.outputs.aks_namespace }} 
+          resource_group: ${{ vars.RESOURCE_GROUP }}
+          cluster_name: ${{ vars.CLUSTER_NAME }}
+          namespace: ${{ needs.orchestrate_build.outputs.aks_namespace }}
         secrets:
-          AZURE_CLIENT_ID: ${{ secrets.ORG_AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.ORG_AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.ORG_AZURE_SUBSCRIPTION_ID }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pass GITHUB_TOKEN to deploy.acr.yml
