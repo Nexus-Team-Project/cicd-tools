@@ -1,5 +1,5 @@
 # cicd-tools/.github/workflows/build.docker.yml
-name: Build and Push Docker Image
+name: Build and Push to ACR
 
 on:
   workflow_call:
@@ -8,20 +8,20 @@ on:
         required: true
         type: string
         description: 'Name of the Docker image (e.g., your-repo-name)'
-      image_tag:
+      image_tag: # <<-- CHANGED: Now an input, not from vars.IMAGE_TAG
         required: true
         type: string
-        description: 'Tag for the Docker image (e.g., SHA, dev-SHA, prod-SHA)'
-      acr_registry_name: 
+        description: 'Dynamic tag for the Docker image (e.g., dev-SHA, prod-SHA)'
+      acr_registry: # <<-- CHANGED: Now an input
         required: true
         type: string
-        description: 'Azure Container Registry name (e.g., myorgacr)'
-      acr_resource_group: 
+        description: 'Name of your container registry / ACR'
+      acr_resource_group: # <<-- CHANGED: Now an input
         required: true
         type: string
-        description: 'Azure Resource Group name for ACR'
+        description: 'Resource group where your ACR is deployed'
     secrets:
-      AZURE_CLIENT_ID: 
+      AZURE_CLIENT_ID:
         required: true
       AZURE_TENANT_ID:
         required: true
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      
       - name: Azure Login
         uses: azure/login@v1.4.6
         with:
@@ -43,8 +43,9 @@ jobs:
 
       - name: Build and push to ACR
         run: |
-          FULL_IMAGE_NAME="${{ inputs.acr_registry_name }}.azurecr.io/${{ inputs.image_name }}:${{ inputs.image_tag }}"
+          # Uses inputs for registry and resource group
+          FULL_IMAGE_NAME="${{ inputs.acr_registry }}.azurecr.io/${{ inputs.image_name }}:${{ inputs.image_tag }}"
           echo "Building and pushing image: $FULL_IMAGE_NAME"
           az acr build --image "$FULL_IMAGE_NAME" \
-                       --registry ${{ inputs.acr_registry_name }} \
+                       --registry ${{ inputs.acr_registry }} \
                        -g ${{ inputs.acr_resource_group }} .

@@ -1,3 +1,4 @@
+# cicd-tools/.github/workflows/build-orchestrator.yml
 name: Reusable Build Stage Orchestrator
 
 on:
@@ -19,7 +20,7 @@ on:
       full_image_tag:
         description: 'The full image tag generated (registry/image:tag)'
         value: ${{ jobs.build_stage.outputs.full_image_tag }}
-      aks_namespace:
+      aks_namespace: # Output for dynamic AKS namespace
         description: 'The determined AKS namespace for deployment'
         value: ${{ jobs.build_stage.outputs.aks_namespace }}
     secrets:
@@ -28,10 +29,6 @@ on:
       AZURE_TENANT_ID:
         required: true
       AZURE_SUBSCRIPTION_ID:
-        required: true
-      ORG_ACR_NAME:
-        required: true
-      ORG_ACR_RESOURCE_GROUP:
         required: true
 
 jobs:
@@ -42,14 +39,14 @@ jobs:
       aks_namespace: ${{ steps.set_image_info.outputs.aks_namespace }}
 
     steps:
-      - name: Set Image Tag, AKS Namespace, and ACR Info
+      - name: Set Image Tag and AKS Namespace
         id: set_image_info
         run: |
-          set -e
           IMAGE_TAG=""
           AKS_NAMESPACE=""
-          ACR_REGISTRY="${{ secrets.ORG_ACR_NAME }}"
-          ACR_RESOURCE_GROUP="${{ secrets.ORG_ACR_RESOURCE_GROUP }}"
+          # Access AZURE_CONTAINER_REGISTRY and RESOURCE_GROUP directly via vars. (Organization Variables)
+          ACR_REGISTRY="${{ vars.AZURE_CONTAINER_REGISTRY }}"
+          ACR_RESOURCE_GROUP="${{ vars.RESOURCE_GROUP }}" # Common RG for ACR
 
           TARGET_ENV_NAME="${{ inputs.target_environment }}"
 
@@ -68,9 +65,7 @@ jobs:
 
           echo "full_image_tag=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "aks_namespace=$AKS_NAMESPACE" >> $GITHUB_OUTPUT
-          echo "Image Tag: $IMAGE_TAG"
-          echo "Full Image Name: $FULL_IMAGE_NAME"
-          echo "AKS Namespace: $AKS_NAMESPACE"
+
 
       - name: Checkout Microservice Code
         uses: actions/checkout@v4
@@ -84,8 +79,9 @@ jobs:
         with:
           image_name: ${{ inputs.repo_name }}
           image_tag: ${{ steps.set_image_info.outputs.full_image_tag }}
-          acr_registry_name: ${{ secrets.ORG_ACR_NAME }}
-          acr_resource_group: ${{ secrets.ORG_ACR_RESOURCE_GROUP }}
+          # Pass common variables as inputs
+          acr_registry: ${{ vars.AZURE_CONTAINER_REGISTRY }}
+          acr_resource_group: ${{ vars.RESOURCE_GROUP }}
         secrets:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
