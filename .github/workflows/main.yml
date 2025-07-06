@@ -1,26 +1,93 @@
-name: Reusable Main CI/CD Pipeline
+name: Main CI/CD Pipeline Orchestrator
+
 on:
   workflow_call:
     secrets:
-      AZURE_CLIENT_ID:
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        required: true
+      inherit
+    permissions:
+      contents: read
+      id-token: write
+      actions: write
+
 jobs:
-  # Call the build workflow
-  build:
-    uses: ./.github/workflows/build.docker.yml
-    secrets: inherit
-    permissions:
-      contents: read
-      id-token: write
-  # Deploy to AKS after successful build
-  deploy:
-    needs: build
-    uses: ./.github/workflows/deploy.acr.yml
-    secrets: inherit
-    permissions:
-      contents: read
-      id-token: write
+  evaluate_ci_cd_rules:
+    name: Evaluate Branch Rules
+    runs-on: ubuntu-latest
+    outputs:
+      should_run_build: ${{ steps.get_rules.outputs.should_run_build }}
+      should_run_deploy: ${{ steps.get_rules.outputs.should_run_deploy }}
+      target_environment: ${{ steps.get_rules.outputs.target_environment }}
+    steps:
+      - name: Call Rules Workflow
+        uses: ./.github/workflows/rules.yml
+        id: get_rules
+
+
+  orchestrate_build:
+    name: Orchestrate Build Stage
+    needs: evaluate_ci_cd_rules
+    if: needs.evaluate_ci_cd_rules.outputs.should_run_build == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      full_image_tag: ${{ steps.call_build_orchestrator.outputs.full_image_tag }}
+      aks_namespace: ${{ steps.call_build_orchestrator.outputs.aks_namespace }}
+    steps:
+      - name: Call Reusable Build Orchestrator Workflow
+        id: call_build_orchestrator
+        uses: ./.github/workflows/build-orchestrator.yml
+        with:
+          target_environment: ${{ needs.evaluate_ci_cd_rules.outputs.target_environment }}
+          repo_name: ${{ github.event.repository.name }}
+          sha: ${{ github.sha }}
+        secrets:
+          AZURE_CLIENT_ID: ${{ secrets.ORG_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.ORG_AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.ORG_AZURE_SUBSCRIPTION_ID }}
+          ORG_ACR_NAME: ${{ secrets.ORG_ACR_NAME }}
+          ORG_ACR_RESOURCE_GROUP: ${{ secrets.ORG_ACR_RESOURCE_GROUP }}
+
+
+  deploy_np:
+    name: Deploy to Non-Production (Dev)
+    needs: [evaluate_ci_cd_rules, orchestrate_build]
+    if: |
+      needs.evaluate_ci_cd_rules.outputs.should_run_deploy == 'true' &&
+      needs.evaluate_ci_cd_rules.outputs.target_environment == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Reusable Deploy ACR Workflow (Non-Production)
+        uses: ./.github/workflows/deploy.acr.yml
+        with:
+          target_env_name: dev
+          image_full_tag: ${{ needs.orchestrate_build.outputs.full_image_tag }}
+          resource_group: ${{ secrets.ORG_RESOURCE_GROUP_DEV }}
+          cluster_name: ${{ secrets.ORG_CLUSTER_DEV }} 
+          namespace: ${{ needs.orchestrate_build.outputs.aks_namespace }} 
+        secrets:
+          AZURE_CLIENT_ID: ${{ secrets.ORG_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.ORG_AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.ORG_AZURE_SUBSCRIPTION_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  deploy_prod:
+    name: Deploy to Production
+    needs: [evaluate_ci_cd_rules, orchestrate_build]
+    if: |
+      needs.evaluate_ci_cd_rules.outputs.should_run_deploy == 'true' &&
+      needs.evaluate_ci_cd_rules.outputs.target_environment == 'production'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Reusable Deploy ACR Workflow (Production)
+        uses: ./.github/workflows/deploy.acr.yml
+        with:
+          target_env_name: production
+          image_full_tag: ${{ needs.orchestrate_build.outputs.full_image_tag }}
+          resource_group: ${{ secrets.ORG_RESOURCE_GROUP_PROD }} 
+          cluster_name: ${{ secrets.ORG_CLUSTER_PROD }} 
+          namespace: ${{ needs.orchestrate_build.outputs.aks_namespace }} 
+        secrets:
+          AZURE_CLIENT_ID: ${{ secrets.ORG_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.ORG_AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.ORG_AZURE_SUBSCRIPTION_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

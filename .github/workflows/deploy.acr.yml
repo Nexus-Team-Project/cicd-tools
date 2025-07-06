@@ -1,12 +1,38 @@
-name: Deploy to AKS
+# cicd-tools/.github/workflows/deploy.acr.yml
+name: Deploy to AKS Environment (YAML-driven)
 
 on:
-  workflow_call:  # Makes this workflow reusable
-
-env:
-  NAMESPACE: ${{ vars.NAMESPACE_NAME }}
-  CLUSTER_NAME: ${{ vars.CLUSTER_NAME }}
-  IMAGE_TAG: ${{ vars.IMAGE_TAG }}
+  workflow_call:
+    inputs:
+      image_full_tag:
+        required: true
+        type: string
+        description: 'Full Docker image tag to deploy (e.g., registry/image:tag)'
+      resource_group: # Environment-specific resource group for the AKS cluster
+        required: true
+        type: string
+        description: 'Azure Resource Group name for AKS cluster'
+      cluster_name: # Environment-specific AKS cluster name
+        required: true
+        type: string
+        description: 'AKS Cluster name'
+      namespace: # Dynamically determined Kubernetes Namespace
+        required: true
+        type: string
+        description: 'Kubernetes Namespace'
+      target_env_name: # For logging/internal logic
+        required: true
+        type: string
+        description: 'Name of the target environment (e.g., dev, production)'
+    secrets:
+      AZURE_CLIENT_ID: # Common Azure Login secrets
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+      GITHUB_TOKEN: # Used for checking out internal repos like cicd-tools
+        required: true
 
 jobs:
   deploy:
@@ -16,15 +42,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: app
-      
+
       - name: Checkout cicd-tools templates
         uses: actions/checkout@v4
         with:
           repository: Nexus-Team-Project/cicd-tools
-          ref: build-basic-cicd
+          ref: build-basic-cicd # Or your appropriate branch/tag for cicd-tools
           path: cicd-tools
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Azure Login
         uses: azure/login@v1.4.6
         with:
@@ -34,28 +60,31 @@ jobs:
 
       - name: Get AKS credentials
         run: |
-          az aks get-credentials --resource-group ${{ vars.RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }}
+          az aks get-credentials --resource-group ${{ inputs.resource_group }} --name ${{ inputs.cluster_name }}
 
       - name: Process and apply K8s templates
         run: |
-          # Set variables for template substitution
           export APP_NAME="${{ github.event.repository.name }}"
-          export IMAGE_NAME="${{ vars.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ github.event.repository.name }}:${{ env.IMAGE_TAG }}"
-          export NAMESPACE="${{ env.NAMESPACE }}"
-          
-          # Process templates (using envsubst for variable substitution)
+          export IMAGE_NAME="${{ inputs.image_full_tag }}"
+          export NAMESPACE="${{ inputs.namespace }}"
+
+          sudo apt-get update && sudo apt-get install -y gettext-base
+
           for template in cicd-tools/k8s/*.yml; do
             if [ -f "$template" ]; then
-              echo "Processing template: $template"
+              echo "Processing template: $template for ${{ inputs.target_env_name }}"
               envsubst < "$template" | kubectl apply -f -
             fi
           done
 
       - name: Wait for deployment to be ready
         run: |
-          kubectl rollout status deployment/${{ github.event.repository.name }} --namespace=${{ env.NAMESPACE }} --timeout=300s
+          echo "Waiting for deployment of ${{ github.event.repository.name }} in namespace ${{ inputs.namespace }} to be ready..."
+          kubectl rollout status deployment/${{ github.event.repository.name }} --namespace=${{ inputs.namespace }} --timeout=300s
 
       - name: Get service endpoint
         run: |
-          echo "Deployment completed successfully!"
-          kubectl get service ${{ github.event.repository.name }} --namespace=${{ env.NAMESPACE }}
+          echo "Service endpoint information for ${{ inputs.target_env_name }}:"
+          kubectl get service ${{ github.event.repository.name }} --namespace=${{ inputs.namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || \
+          kubectl get service ${{ github.event.repository.name }} --namespace=${{ inputs.namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || \
+          echo "Service endpoint not found or pending."

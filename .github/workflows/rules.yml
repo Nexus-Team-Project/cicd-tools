@@ -1,0 +1,81 @@
+# cicd-tools/.github/workflows/rules.yml
+name: Evaluate CI/CD Rules
+
+on:
+  workflow_call:
+    outputs:
+      should_run_build:
+        description: "Whether build job should run"
+        value: ${{ jobs.evaluate-rules.outputs.should_run_build }}
+      should_run_deploy:
+        description: "Whether deploy job should run"
+        value: ${{ jobs.evaluate-rules.outputs.should_run_deploy }}
+      target_environment:
+        description: "Target environment for deployment (dev/production)"
+        value: ${{ jobs.evaluate-rules.outputs.target_environment }}
+
+jobs:
+  evaluate-rules:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run_build: ${{ steps.determine-rules.outputs.should_run_build }}
+      should_run_deploy: ${{ steps.determine-rules.outputs.should_run_deploy }}
+      target_environment: ${{ steps.determine-rules.outputs.target_environment }}
+    steps:
+      - name: Determine Rules
+        id: determine-rules
+        run: |
+          SHOULD_RUN_BUILD="false"
+          SHOULD_RUN_DEPLOY="false"
+          TARGET_ENVIRONMENT=""
+
+          CURRENT_BRANCH_NAME="${{ github.ref_name }}"
+          EVENT_NAME="${{ github.event_name }}"
+
+          # --- Build Rules ---
+          # Build on push to main, develop, or feat/add-ci
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            case "$CURRENT_BRANCH_NAME" in
+              "main"|"develop"|"feat/add-ci")
+                SHOULD_RUN_BUILD="true"
+                ;;
+            esac
+          fi
+          # Build on PRs targeting main, develop, or feat/add-ci
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            PR_BASE_REF="${{ github.base_ref }}"
+            case "$PR_BASE_REF" in
+              "main"|"develop"|"feat/add-ci")
+                SHOULD_RUN_BUILD="true"
+                ;;
+            esac
+          fi
+
+          # --- Determine Target Environment and Deploy Rule ---
+          # A target environment is set ONLY for pushes to 'develop' or 'main'
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            case "$CURRENT_BRANCH_NAME" in
+              "develop")
+                TARGET_ENVIRONMENT="dev"
+                ;;
+              "main")
+                TARGET_ENVIRONMENT="production"
+                ;;
+            esac
+          fi
+
+          # If a target environment was determined, then a deploy should run
+          if [[ -n "$TARGET_ENVIRONMENT" ]]; then
+            SHOULD_RUN_DEPLOY="true"
+          else
+            SHOULD_RUN_DEPLOY="false"
+          fi
+
+          echo "should_run_build=$SHOULD_RUN_BUILD" >> $GITHUB_OUTPUT
+          echo "should_run_deploy=$SHOULD_RUN_DEPLOY" >> $GITHUB_OUTPUT
+          echo "target_environment=$TARGET_ENVIRONMENT" >> $GITHUB_OUTPUT
+
+          echo "Evaluated Rules:"
+          echo "  Should Run Build: $SHOULD_RUN_BUILD"
+          echo "  Should Run Deploy: $SHOULD_RUN_DEPLOY"
+          echo "  Target Environment: $TARGET_ENVIRONMENT"
