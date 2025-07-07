@@ -1,8 +1,9 @@
 # cicd-tools/.github/workflows/main.yml
-name: Main CI/CD Pipeline Orchestrator
+name: Reusable Main CI/CD Pipeline
 
 on:
   workflow_call:
+    # This section (on: workflow_call) defines what secrets THIS reusable workflow (main.yml) needs as inputs from ITS CALLER (the microservice repo)
     secrets:
       AZURE_CLIENT_ID:
         required: true
@@ -10,13 +11,17 @@ on:
         required: true
       AZURE_SUBSCRIPTION_ID:
         required: true
-      # REMOVE GITHUB_TOKEN from this list, it's system-reserved
-      # GITHUB_TOKEN:
-      #   required: true
-    permissions:
-      contents: read
-      id-token: write
-      actions: write
+      GITHUB_TOKEN: # GITHUB_TOKEN is received as an explicit secret here from the caller
+        required: true
+    # <<-- REMOVED 'secrets: inherit' from here -->>
+    # <<-- REMOVED 'permissions:' from here -->>
+
+# Permissions for the entire workflow can be defined here, or per job.
+# Placing them at the top level is often cleaner if many jobs share the same permissions.
+permissions:
+  contents: read # Allow reading of repository contents
+  id-token: write # Allow writing of OIDC tokens for Azure login (crucial for azure/login)
+  actions: write # Needed for calling other reusable workflows (like build-orchestrator, deploy.acr)
 
 jobs:
   evaluate_ci_cd_rules:
@@ -40,6 +45,11 @@ jobs:
     outputs:
       full_image_tag: ${{ steps.call_build_orchestrator.outputs.full_image_tag }}
       aks_namespace: ${{ steps.call_build_orchestrator.outputs.aks_namespace }}
+    # Permissions defined at job level override workflow-level permissions if specified.
+    # No need to repeat if workflow-level permissions are sufficient.
+    # permissions:
+    #   contents: read
+    #   id-token: write
     steps:
       - name: Call Reusable Build Orchestrator Workflow
         id: call_build_orchestrator
@@ -61,9 +71,10 @@ jobs:
       needs.evaluate_ci_cd_rules.outputs.should_run_deploy == 'true' &&
       needs.evaluate_ci_cd_rules.outputs.target_environment == 'dev'
     runs-on: ubuntu-latest
-    permissions: # Permissions are typically set at the job level
-      contents: read
-      id-token: write # Needed for Azure Login
+    # No need to repeat permissions if workflow-level are sufficient
+    # permissions:
+    #   contents: read
+    #   id-token: write
     steps:
       - name: Call Reusable Deploy ACR Workflow (Non-Production)
         uses: ./.github/workflows/deploy.acr.yml
@@ -77,7 +88,7 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pass GITHUB_TOKEN from caller to sub-workflow
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
   deploy_prod:
@@ -87,9 +98,10 @@ jobs:
       needs.evaluate_ci_cd_rules.outputs.should_run_deploy == 'true' &&
       needs.evaluate_ci_cd_rules.outputs.target_environment == 'production'
     runs-on: ubuntu-latest
-    permissions: # Permissions are typically set at the job level
-      contents: read
-      id-token: write # Needed for Azure Login
+    # No need to repeat permissions if workflow-level are sufficient
+    # permissions:
+    #   contents: read
+    #   id-token: write
     steps:
       - name: Call Reusable Deploy ACR Workflow (Production)
         uses: ./.github/workflows/deploy.acr.yml
@@ -103,4 +115,4 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pass GITHUB_TOKEN from caller to sub-workflow
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
