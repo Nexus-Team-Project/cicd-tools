@@ -48,18 +48,14 @@ jobs:
           echo "=== DEBUG INFO ==="
           echo "Target Environment: $TARGET_ENV_NAME"
           echo "Repository Name: ${{ inputs.repo_name }}"
-          echo "SHA: ${{ inputs.sha }}"
           echo "ACR Registry: $ACR_REGISTRY"
 
           if [[ "$TARGET_ENV_NAME" == "dev" ]]; then
-            IMAGE_TAG="dev-${{ inputs.sha }}"
-            AKS_NAMESPACE="dev-${{ inputs.repo_name }}"
+            IMAGE_TAG="dev"
+            AKS_NAMESPACE="dev"
           elif [[ "$TARGET_ENV_NAME" == "production" ]]; then
-            IMAGE_TAG="prod-${{ inputs.sha }}"
-            AKS_NAMESPACE="prod-${{ inputs.repo_name }}"
-          else
-            IMAGE_TAG="${{ inputs.sha }}"
-            AKS_NAMESPACE="default"
+            IMAGE_TAG="stable"
+            AKS_NAMESPACE="production"
           fi
 
           FULL_IMAGE_NAME="$ACR_REGISTRY.azurecr.io/${{ inputs.repo_name }}:$IMAGE_TAG"
