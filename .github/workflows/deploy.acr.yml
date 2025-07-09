@@ -31,8 +31,6 @@ on:
         required: true
       AZURE_SUBSCRIPTION_ID:
         required: true
-      GITHUB_TOKEN: # Needed for checking out cicd-tools templates if private
-        required: true
 
 jobs:
   deploy:
