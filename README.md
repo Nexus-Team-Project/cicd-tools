@@ -81,7 +81,7 @@ Your repository needs:
 - Auto-detects ACR if not specified
 - Tags images appropriately for the environment
 
-### 3. Deployment (`.github/workflows/deploy.acr.yml`)
+### 3. Deployment (`.github/workflows/deploy.aks.yml`)
 - Deploys to AKS using Kubernetes manifests
 - Creates namespace if it doesn't exist
 - Applies deployment and service configurations

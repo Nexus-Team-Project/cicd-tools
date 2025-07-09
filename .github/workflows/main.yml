@@ -51,7 +51,7 @@ jobs:
     name: Deploy to Environment
     needs: [evaluate_ci_cd_rules, orchestrate_build]
     if: needs.evaluate_ci_cd_rules.outputs.should_run_deploy == 'true'
-    uses: ./.github/workflows/deploy.acr.yml
+    uses: ./.github/workflows/deploy.aks.yml
     with:
       target_env_name: ${{ needs.evaluate_ci_cd_rules.outputs.target_environment }}
       namespace: ${{ needs.evaluate_ci_cd_rules.outputs.namespace }}
