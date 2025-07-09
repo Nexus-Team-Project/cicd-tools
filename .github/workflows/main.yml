@@ -11,9 +11,9 @@ on:
         required: true
 
 permissions:
-  contents: read 
+  contents: read
   id-token: write
-  actions: write 
+  actions: write
 
 jobs:
   evaluate_ci_cd_rules:
