@@ -1,0 +1,135 @@
+name: Deploy to AKS
+
+on:
+  workflow_call:
+    inputs:
+      namespace:
+        required: true
+        type: string
+        description: 'Dynamic Kubernetes Namespace for deployment'
+      cluster_name:
+        required: true
+        type: string
+        description: 'Name of your AKS cluster'
+      image_full_tag:
+        required: true
+        type: string
+        description: 'Full Docker image tag to deploy'
+      resource_group:
+        required: true
+        type: string
+        description: 'Resource group where your AKS cluster is deployed'
+      target_env_name:
+        required: true
+        type: string
+        description: 'Name of the target environment (e.g., dev, production)'
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout application code
+        uses: actions/checkout@v4
+        with:
+          path: app
+      
+      - name: Checkout cicd-tools templates
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/cicd-tools
+          ref: main
+          path: cicd-tools
+          token: ${{ github.token }}
+      
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get AKS credentials
+        run: |
+          echo "=== AKS CONNECTION INFO ==="
+          echo "Resource Group: ${{ inputs.resource_group }}"
+          echo "Cluster Name: ${{ inputs.cluster_name }}"
+          echo "Namespace: ${{ inputs.namespace }}"
+          echo "Target Environment: ${{ inputs.target_env_name }}"
+          
+          az aks get-credentials --resource-group ${{ inputs.resource_group }} --name ${{ inputs.cluster_name }}
+
+      - name: Get ACR info and construct full image name
+        id: acr_info
+        run: |
+          set -e
+          
+          # Use known ACR name from variables
+          ACR_NAME="${{ vars.AZURE_CONTAINER_REGISTRY }}"
+          
+          if [[ -z "$ACR_NAME" ]]; then
+            echo "Error: AZURE_CONTAINER_REGISTRY variable not set"
+            exit 1
+          fi
+          
+          # Construct full image name if only tag was provided
+          IMAGE_INPUT="${{ inputs.image_full_tag }}"
+          if [[ "$IMAGE_INPUT" == *":"* ]] && [[ "$IMAGE_INPUT" != *".azurecr.io"* ]]; then
+            # Input is repo:tag format, need to add ACR registry
+            FULL_IMAGE_NAME="${ACR_NAME}.azurecr.io/${IMAGE_INPUT}"
+          else
+            # Input is already full image name
+            FULL_IMAGE_NAME="$IMAGE_INPUT"
+          fi
+          
+          echo "ACR Name: $ACR_NAME"
+          echo "Full Image Name: $FULL_IMAGE_NAME"
+          echo "full_image_name=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Process and apply K8s templates
+        run: |
+          set -e
+          
+          export APP_NAME="${{ github.event.repository.name }}"
+          export IMAGE_NAME="${{ steps.acr_info.outputs.full_image_name }}"
+          export NAMESPACE="${{ inputs.namespace }}"
+          
+          echo "=== DEPLOYMENT INFO ==="
+          echo "App Name: $APP_NAME"
+          echo "Image Name: $IMAGE_NAME"
+          echo "Namespace: $NAMESPACE"
+          
+          # Install envsubst if not available
+          if ! command -v envsubst &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y gettext-base
+          fi
+
+          # Create namespace if it doesn't exist
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+          # Process and apply templates
+          for template in cicd-tools/k8s/*.yml; do
+            if [ -f "$template" ]; then
+              echo "Processing template: $template"
+              envsubst < "$template" | kubectl apply -f -
+            fi
+          done
+
+      - name: Wait for deployment to be ready
+        run: |
+          echo "Waiting for deployment to be ready..."
+          kubectl rollout status deployment/${{ github.event.repository.name }} --namespace=${{ inputs.namespace }} --timeout=300s
+
+      - name: Get service endpoint
+        run: |
+          echo "=== DEPLOYMENT COMPLETED SUCCESSFULLY ==="
+          echo "Environment: ${{ inputs.target_env_name }}"
+          echo "Namespace: ${{ inputs.namespace }}"
+          kubectl get service ${{ github.event.repository.name }} --namespace=${{ inputs.namespace }}
+          kubectl get pods --namespace=${{ inputs.namespace }}

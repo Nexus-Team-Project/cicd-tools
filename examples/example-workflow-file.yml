@@ -1,0 +1,19 @@
+# Sample workflow for testing - this would go in the application repository
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: ["dev"]
+  pull_request:
+    branches: ["main", "dev"]
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write 
+
+jobs:
+  call-full-pipeline:
+    name: Run Full CI/CD Pipeline
+    uses: Nexus-Team-Project/cicd-tools/.github/workflows/main.yml@main
+    secrets: inherit

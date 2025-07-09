@@ -1,0 +1,92 @@
+name: Evaluate CI/CD Rules
+
+on:
+  workflow_call:
+    outputs:
+      should_run_build:
+        description: "Whether build job should run"
+        value: ${{ jobs.evaluate-rules.outputs.should_run_build }}
+      should_run_deploy:
+        description: "Whether deploy job should run"
+        value: ${{ jobs.evaluate-rules.outputs.should_run_deploy }}
+      target_environment:
+        description: "Target environment for deployment (dev/production)"
+        value: ${{ jobs.evaluate-rules.outputs.target_environment }}
+      image_tag:
+        description: "Docker image tag to use"
+        value: ${{ jobs.evaluate-rules.outputs.image_tag }}
+      namespace:
+        description: "Kubernetes namespace for deployment"
+        value: ${{ jobs.evaluate-rules.outputs.namespace }}
+
+jobs:
+  evaluate-rules:
+    runs-on: ubuntu-latest
+    # Only run this job if we're on the correct branches
+    if: github.ref_name == 'dev' || github.ref_name == 'main'
+    outputs:
+      should_run_build: ${{ steps.determine-rules.outputs.should_run_build }}
+      should_run_deploy: ${{ steps.determine-rules.outputs.should_run_deploy }}
+      target_environment: ${{ steps.determine-rules.outputs.target_environment }}
+      image_tag: ${{ steps.determine-rules.outputs.image_tag }}
+      namespace: ${{ steps.determine-rules.outputs.namespace }}
+    steps:
+      - name: Determine Rules
+        id: determine-rules
+        run: |
+          set -e  # Exit on any error
+          
+          SHOULD_RUN_BUILD="false"
+          SHOULD_RUN_DEPLOY="false"
+          TARGET_ENVIRONMENT=""
+          IMAGE_TAG=""
+          NAMESPACE=""
+
+          CURRENT_BRANCH_NAME="${{ github.ref_name }}"
+          EVENT_NAME="${{ github.event_name }}"
+
+          echo "=== CI/CD Rules Evaluation ==="
+          echo "Branch: $CURRENT_BRANCH_NAME"
+          echo "Event: $EVENT_NAME"
+
+          # Simple CI/CD: Build and Deploy only on push to specific branches
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            case "$CURRENT_BRANCH_NAME" in
+              "dev")
+                SHOULD_RUN_BUILD="true"
+                SHOULD_RUN_DEPLOY="true"
+                TARGET_ENVIRONMENT="dev"
+                IMAGE_TAG="${{ vars.IMAGE_TAG_NP }}"
+                NAMESPACE="${{ vars.NAMESPACE_NAME_NP }}"
+                echo "✅ Configured for DEV environment"
+                ;;
+              "main")
+                SHOULD_RUN_BUILD="true"
+                SHOULD_RUN_DEPLOY="true"
+                TARGET_ENVIRONMENT="production"
+                IMAGE_TAG="${{ vars.IMAGE_TAG_PROD }}"
+                NAMESPACE="${{ vars.NAMESPACE_NAME_PROD }}"
+                echo "✅ Configured for PRODUCTION environment"
+                ;;
+              *)
+                echo "❌ Branch '$CURRENT_BRANCH_NAME' does not trigger CI/CD"
+                ;;
+            esac
+          else
+            echo "❌ Event '$EVENT_NAME' does not trigger CI/CD (only 'push' events)"
+          fi
+
+          # Output all variables
+          echo "should_run_build=$SHOULD_RUN_BUILD" >> $GITHUB_OUTPUT
+          echo "should_run_deploy=$SHOULD_RUN_DEPLOY" >> $GITHUB_OUTPUT
+          echo "target_environment=$TARGET_ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "=== Final Results ==="
+          echo "  Should Run Build: $SHOULD_RUN_BUILD"
+          echo "  Should Run Deploy: $SHOULD_RUN_DEPLOY"
+          echo "  Target Environment: $TARGET_ENVIRONMENT"
+          echo "  Image Tag: $IMAGE_TAG"
+          echo "  Namespace: $NAMESPACE"

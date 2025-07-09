@@ -2,26 +2,63 @@ name: Reusable Main CI/CD Pipeline
 
 on:
   workflow_call:
+    inputs:
+      # Allow customization of ACR and AKS settings (optional)
+      acr_name:
+        required: false
+        type: string
+        description: 'Azure Container Registry name (if not provided, will use vars.AZURE_CONTAINER_REGISTRY)'
+      resource_group:
+        required: false
+        type: string
+        description: 'Resource group containing AKS cluster (if not provided, will use vars.RESOURCE_GROUP)'
+      cluster_name:
+        required: false
+        type: string
+        description: 'AKS cluster name (if not provided, will use vars.CLUSTER_NAME)'
     secrets:
-      AZURE_CREDENTIALS:
+      AZURE_CLIENT_ID:
         required: true
-      ACR_LOGIN_SERVER:
+      AZURE_TENANT_ID:
         required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write
 
 jobs:
-  # Call the build workflow
-  build:
-    uses: ./.github/workflows/build.docker.yml
-    secrets: inherit
-    permissions:
-      contents: read
-      id-token: write
+  evaluate_ci_cd_rules:
+    name: Evaluate Branch Rules
+    uses: ./.github/workflows/rules.yml
 
-  # Deploy to AKS after successful build
+  orchestrate_build:
+    name: Orchestrate Build Stage
+    needs: evaluate_ci_cd_rules
+    if: needs.evaluate_ci_cd_rules.outputs.should_run_build == 'true'
+    uses: ./.github/workflows/build-orchestrator.yml
+    with:
+      target_environment: ${{ needs.evaluate_ci_cd_rules.outputs.target_environment }}
+      repo_name: ${{ github.event.repository.name }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
   deploy:
-    needs: build
-    uses: ./.github/workflows/deploy.acr.yml
-    secrets: inherit
-    permissions:
-      contents: read
-      id-token: write
+    name: Deploy to Environment
+    needs: [evaluate_ci_cd_rules, orchestrate_build]
+    if: needs.evaluate_ci_cd_rules.outputs.should_run_deploy == 'true'
+    uses: ./.github/workflows/deploy.aks.yml
+    with:
+      target_env_name: ${{ needs.evaluate_ci_cd_rules.outputs.target_environment }}
+      namespace: ${{ needs.evaluate_ci_cd_rules.outputs.namespace }}
+      cluster_name: ${{ vars.CLUSTER_NAME }}
+      resource_group: ${{ vars.RESOURCE_GROUP }}
+      image_full_tag: ${{ github.event.repository.name }}:${{ needs.evaluate_ci_cd_rules.outputs.image_tag }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
