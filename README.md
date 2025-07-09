@@ -37,14 +37,10 @@ on:
 jobs:
   ci_cd:
     uses: YOUR_ORG/cicd-tools/.github/workflows/main.yml@build-basic-cicd
-    with:
-      resource_group: "your-aks-resource-group"
-      cluster_name: "your-aks-cluster"
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 ```
+
+**Note**: The workflow automatically uses your repository variables. No inputs needed!
 
 ### 3. Required Secrets
 
