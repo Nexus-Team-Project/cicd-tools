@@ -28,11 +28,23 @@ on:
       AZURE_SUBSCRIPTION_ID:
         required: true
 
+# build.docker.yml
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Debug Build Inputs
+        run: |
+          echo "=== BUILD DEBUG INFO ==="
+          echo "Image Name: ${{ inputs.image_name }}"
+          echo "Image Tag: ${{ inputs.image_tag }}"
+          echo "ACR Registry: ${{ inputs.acr_registry }}"
+          echo "ACR Resource Group: ${{ inputs.acr_resource_group }}"
+          
+          FULL_IMAGE_NAME="${{ inputs.acr_registry }}.azurecr.io/${{ inputs.image_name }}:${{ inputs.image_tag }}"
+          echo "Full Image Name: $FULL_IMAGE_NAME"
       
       - name: Azure Login
         uses: azure/login@v1.4.6
@@ -43,7 +55,6 @@ jobs:
 
       - name: Build and push to ACR
         run: |
-          # Uses inputs for registry and resource group
           FULL_IMAGE_NAME="${{ inputs.acr_registry }}.azurecr.io/${{ inputs.image_name }}:${{ inputs.image_tag }}"
           echo "Building and pushing image: $FULL_IMAGE_NAME"
           az acr build --image "$FULL_IMAGE_NAME" \

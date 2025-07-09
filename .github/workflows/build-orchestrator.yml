@@ -25,6 +25,7 @@ on:
       AZURE_SUBSCRIPTION_ID:
         required: true
 
+# build-orchestrator.yml
 jobs:
   set_build_vars:
     runs-on: ubuntu-latest
@@ -32,6 +33,7 @@ jobs:
       full_image_tag: ${{ steps.set_image_info.outputs.full_image_tag }}
       aks_namespace: ${{ steps.set_image_info.outputs.aks_namespace }}
       image_tag: ${{ steps.set_image_info.outputs.image_tag }}
+
     steps:
       - name: Set Image Tag and AKS Namespace
         id: set_image_info
@@ -39,22 +41,37 @@ jobs:
           IMAGE_TAG=""
           AKS_NAMESPACE=""
           ACR_REGISTRY="${{ vars.AZURE_CONTAINER_REGISTRY }}"
+          ACR_RESOURCE_GROUP="${{ vars.RESOURCE_GROUP }}"
+
           TARGET_ENV_NAME="${{ inputs.target_environment }}"
 
+          echo "=== DEBUG INFO ==="
+          echo "Target Environment: $TARGET_ENV_NAME"
+          echo "Repository Name: ${{ inputs.repo_name }}"
+          echo "SHA: ${{ inputs.sha }}"
+          echo "ACR Registry: $ACR_REGISTRY"
+
           if [[ "$TARGET_ENV_NAME" == "dev" ]]; then
-            IMAGE_TAG="dev"
-            AKS_NAMESPACE="dev"
+            IMAGE_TAG="dev-${{ inputs.sha }}"
+            AKS_NAMESPACE="dev-${{ inputs.repo_name }}"
           elif [[ "$TARGET_ENV_NAME" == "production" ]]; then
-            IMAGE_TAG="stable"
-            AKS_NAMESPACE="production"
+            IMAGE_TAG="prod-${{ inputs.sha }}"
+            AKS_NAMESPACE="prod-${{ inputs.repo_name }}"
+          else
+            IMAGE_TAG="${{ inputs.sha }}"
+            AKS_NAMESPACE="default"
           fi
 
           FULL_IMAGE_NAME="$ACR_REGISTRY.azurecr.io/${{ inputs.repo_name }}:$IMAGE_TAG"
 
+          echo "=== GENERATED VALUES ==="
+          echo "Image Tag: $IMAGE_TAG"
+          echo "AKS Namespace: $AKS_NAMESPACE"
+          echo "Full Image Name: $FULL_IMAGE_NAME"
+
           echo "full_image_tag=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "aks_namespace=$AKS_NAMESPACE" >> $GITHUB_OUTPUT
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-          echo "$GITHUB_OUTPUT"
 
   build_docker:
     needs: set_build_vars
