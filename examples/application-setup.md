@@ -14,7 +14,7 @@ on:
 jobs:
   ci_cd:
     name: Build and Deploy
-    uses: YOUR_GITHUB_ORG/cicd-tools/.github/workflows/main.yml@main
+    uses: Nexus-Team-Project/cicd-tools/.github/workflows/main.yml@main
     secrets: inherit
 ```
 
@@ -24,7 +24,7 @@ jobs:
 your-app-repo/
 ├── .github/
 │   └── workflows/
-│       └── ci-cd.yml          # The file above
+│       └── main.yml          # The file above
 ├── src/                       # Your application code
 ├── package.json               # If Node.js app
 ├── Dockerfile                 # Required for containerization
@@ -52,7 +52,7 @@ EXPOSE 3000
 
 # Health check endpoint (recommended)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD curl -f http://localhost:3000/ || exit 1
 
 # Start application
 CMD ["npm", "start"]
@@ -62,11 +62,11 @@ CMD ["npm", "start"]
 
 ```javascript
 // Add these to your Express app
-app.get('/health', (req, res) => {
+app.get('/', (req, res) => {
   res.status(200).json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
-app.get('/ready', (req, res) => {
+app.get('/', (req, res) => {
   // Add any readiness checks here (database connectivity, etc.)
   res.status(200).json({ status: 'ready', timestamp: new Date().toISOString() });
 });

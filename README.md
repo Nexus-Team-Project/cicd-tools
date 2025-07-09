@@ -25,18 +25,26 @@ The pipeline is designed to:
 
 ### 1. Add to Your Repository
 
-In your application repository, create `.github/workflows/ci-cd.yml`:
+In your application repository, create `.github/workflows/main.yml`:
 
 ```yaml
 name: CI/CD Pipeline
-
 on:
   push:
-    branches: [main, dev]
+    branches: ["feat/add-ci", "develop"]
+  pull_request:
+    branches: ["feat/add-ci"]
 
+permissions:
+  contents: read
+  id-token: write
+  actions: write 
+
+  
 jobs:
-  ci_cd:
-    uses: YOUR_ORG/cicd-tools/.github/workflows/main.yml@main
+  call-full-pipeline:
+    name: Run Full CI/CD Pipeline
+    uses: Nexus-Team-Project/cicd-tools/.github/workflows/main.yml@build-basic-cicd
     secrets: inherit
 ```
 
@@ -66,8 +74,8 @@ Your repository needs:
 - `Dockerfile` - Container definition
 - Application code that runs on port 3000
 - Health check endpoints (recommended):
-  - `/health` - For liveness probe
-  - `/ready` - For readiness probe
+  - `/` - For liveness probe
+  - `/` - For readiness probe
 
 ## How It Works
 
@@ -102,20 +110,6 @@ The pipeline creates these Kubernetes resources:
 - Named port for better networking
 
 ## Advanced Configuration
-
-### Custom ACR
-If you have multiple ACRs or want to specify one:
-
-```yaml
-jobs:
-  ci_cd:
-    uses: YOUR_ORG/cicd-tools/.github/workflows/main.yml@main
-    with:
-      acr_name: "your-custom-acr"
-      resource_group: "your-aks-resource-group"
-      cluster_name: "your-aks-cluster"
-    secrets: # ... same as above
-```
 
 ### Environment-Specific Behavior
 
@@ -154,8 +148,8 @@ The pipeline automatically:
 - Check if health endpoints are implemented
 
 ### Branch Not Triggering
-- Only `main`, `dev`, and `dev` branches trigger CI/CD
-- Only `push` events trigger the pipeline
+- Only `main` and `dev` branches trigger CI/CD
+- Only `push` events trigger the pipeline in `main`
 - Check branch name spelling
 
 ## Contributing
@@ -166,7 +160,3 @@ To modify the CI/CD pipeline:
 2. Make changes to workflow files
 3. Test with a sample application
 4. Submit pull request
-
-## License
-
-This project is licensed under the MIT License.
