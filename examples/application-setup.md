@@ -34,28 +34,33 @@ your-app-repo/
 ## Example Dockerfile (Node.js)
 
 ```dockerfile
-FROM node:18-alpine
+FROM node:22 AS builder
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+RUN npm ci
 
-# Copy application code
 COPY . .
 
-# Expose port (must be 3000 for the K8s templates)
+RUN npm run build
+
+RUN npm test
+
+FROM node:22-slim AS runner
+
+WORKDIR /app
+
+COPY --from=builder /app/dist ./dist
+
+COPY package*.json ./
+
+RUN npm ci --omit=dev
+
 EXPOSE 3000
 
-# Health check endpoint (recommended)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/ || exit 1
-
-# Start application
-CMD ["npm", "start"]
+CMD ["npm", "run", "deploy"]
 ```
 
 ## Example Health Endpoints (Express.js)
