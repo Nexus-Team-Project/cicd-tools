@@ -54,6 +54,7 @@ jobs:
           echo "full_image_tag=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "aks_namespace=$AKS_NAMESPACE" >> $GITHUB_OUTPUT
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "$GITHUB_OUTPUT"
 
   build_docker:
     needs: set_build_vars
