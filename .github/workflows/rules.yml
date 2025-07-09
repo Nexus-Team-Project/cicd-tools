@@ -22,8 +22,6 @@ on:
 jobs:
   evaluate-rules:
     runs-on: ubuntu-latest
-    # Only run this job if we're on the correct branches
-    if: github.ref_name == 'dev' || github.ref_name == 'main'
     outputs:
       should_run_build: ${{ steps.determine-rules.outputs.should_run_build }}
       should_run_deploy: ${{ steps.determine-rules.outputs.should_run_deploy }}
