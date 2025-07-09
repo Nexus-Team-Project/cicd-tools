@@ -8,15 +8,15 @@ on:
         required: true
         type: string
         description: 'Name of the Docker image (e.g., your-repo-name)'
-      image_tag: # <<-- CHANGED: Now an input, not from vars.IMAGE_TAG
+      image_tag: 
         required: true
         type: string
-        description: 'Dynamic tag for the Docker image (e.g., dev-SHA, prod-SHA)'
-      acr_registry: # <<-- CHANGED: Now an input
+        description: 'Dynamic tag for the Docker image (e.g., dev, stable)'
+      acr_registry: 
         required: true
         type: string
         description: 'Name of your container registry / ACR'
-      acr_resource_group: # <<-- CHANGED: Now an input
+      acr_resource_group: 
         required: true
         type: string
         description: 'Resource group where your ACR is deployed'

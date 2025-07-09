@@ -28,7 +28,6 @@ jobs:
     with:
       target_environment: ${{ needs.evaluate_ci_cd_rules.outputs.target_environment }}
       repo_name: ${{ github.event.repository.name }}
-      sha: ${{ github.sha }}
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
