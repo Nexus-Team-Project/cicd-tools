@@ -1,4 +1,3 @@
-# cicd-tools/.github/workflows/build.docker.yml
 name: Build and Push to ACR
 
 on:
@@ -13,13 +12,13 @@ on:
         type: string
         description: 'Dynamic tag for the Docker image (e.g., dev, stable)'
       acr_registry: 
-        required: true
+        required: false
         type: string
-        description: 'Name of your container registry / ACR'
+        description: 'Name of your container registry / ACR (if not provided, will auto-detect)'
       acr_resource_group: 
-        required: true
+        required: false
         type: string
-        description: 'Resource group where your ACR is deployed'
+        description: 'Resource group where your ACR is deployed (if not provided, will auto-detect)'
     secrets:
       AZURE_CLIENT_ID:
         required: true
@@ -28,35 +27,66 @@ on:
       AZURE_SUBSCRIPTION_ID:
         required: true
 
-# build.docker.yml
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Debug Build Inputs
-        run: |
-          echo "=== BUILD DEBUG INFO ==="
-          echo "Image Name: ${{ inputs.image_name }}"
-          echo "Image Tag: ${{ inputs.image_tag }}"
-          echo "ACR Registry: ${{ inputs.acr_registry }}"
-          echo "ACR Resource Group: ${{ inputs.acr_resource_group }}"
-          
-          FULL_IMAGE_NAME="${{ inputs.acr_registry }}.azurecr.io/${{ inputs.image_name }}:${{ inputs.image_tag }}"
-          echo "Full Image Name: $FULL_IMAGE_NAME"
+      - name: Checkout Repository
+        uses: actions/checkout@v4
       
       - name: Azure Login
-        uses: azure/login@v1.4.6
+        uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Get ACR information
+        id: acr_info
+        run: |
+          set -e
+          
+          # Use provided ACR info or auto-detect
+          if [[ -n "${{ inputs.acr_registry }}" ]]; then
+            ACR_NAME="${{ inputs.acr_registry }}"
+            ACR_RESOURCE_GROUP="${{ inputs.acr_resource_group }}"
+          else
+            # Auto-detect ACR (assumes only one ACR in the subscription)
+            ACR_NAME=$(az acr list --query '[0].name' -o tsv)
+            ACR_RESOURCE_GROUP=$(az acr list --query '[0].resourceGroup' -o tsv)
+          fi
+          
+          if [[ -z "$ACR_NAME" ]]; then
+            echo "Error: No ACR found and none provided in inputs"
+            exit 1
+          fi
+          
+          echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
+          echo "acr_resource_group=$ACR_RESOURCE_GROUP" >> $GITHUB_OUTPUT
+          
+          echo "=== ACR BUILD INFO ==="
+          echo "ACR Name: $ACR_NAME"
+          echo "ACR Resource Group: $ACR_RESOURCE_GROUP"
+          echo "Image Name: ${{ inputs.image_name }}"
+          echo "Image Tag: ${{ inputs.image_tag }}"
+      
       - name: Build and push to ACR
         run: |
-          FULL_IMAGE_NAME="${{ inputs.acr_registry }}.azurecr.io/${{ inputs.image_name }}:${{ inputs.image_tag }}"
+          set -e
+          
+          ACR_NAME="${{ steps.acr_info.outputs.acr_name }}"
+          ACR_RESOURCE_GROUP="${{ steps.acr_info.outputs.acr_resource_group }}"
+          FULL_IMAGE_NAME="${ACR_NAME}.azurecr.io/${{ inputs.image_name }}:${{ inputs.image_tag }}"
+          
           echo "Building and pushing image: $FULL_IMAGE_NAME"
-          az acr build --image "$FULL_IMAGE_NAME" \
-                       --registry ${{ inputs.acr_registry }} \
-                       -g ${{ inputs.acr_resource_group }} .
+          
+          # Build and push using ACR build (which handles authentication automatically)
+          az acr build \
+            --image "$FULL_IMAGE_NAME" \
+            --registry "$ACR_NAME" \
+            --resource-group "$ACR_RESOURCE_GROUP" \
+            --file Dockerfile \
+            .
+          
+          echo "✅ Build completed successfully!"
+          echo "Image available at: $FULL_IMAGE_NAME"

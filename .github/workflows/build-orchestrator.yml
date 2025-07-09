@@ -1,4 +1,3 @@
-# build-orchestrator.yml
 name: Reusable Build Stage Orchestrator
 
 on:
@@ -7,15 +6,20 @@ on:
       target_environment:
         required: true
         type: string
+        description: 'The target environment for build-specific tagging (e.g., dev, production)'
       repo_name:
         required: true
         type: string
+        description: 'Name of the microservice repository (used for image name)'
     outputs:
       full_image_tag:
+        description: 'The full image tag generated (registry/image:tag)'
         value: ${{ jobs.set_build_vars.outputs.full_image_tag }}
       aks_namespace:
+        description: 'The determined AKS namespace for deployment'
         value: ${{ jobs.set_build_vars.outputs.aks_namespace }}
       image_tag:
+        description: 'The image tag used for building'
         value: ${{ jobs.set_build_vars.outputs.image_tag }}
     secrets:
       AZURE_CLIENT_ID:
@@ -38,49 +42,79 @@ jobs:
       - name: Set Image Tag and AKS Namespace
         id: set_image_info
         run: |
-          IMAGE_TAG=""
-          AKS_NAMESPACE=""
-          ACR_REGISTRY="${{ vars.AZURE_CONTAINER_REGISTRY }}"
-          ACR_RESOURCE_GROUP="${{ vars.RESOURCE_GROUP }}"
-
+          set -e  # Exit on any error
+          
           TARGET_ENV_NAME="${{ inputs.target_environment }}"
 
-          echo "=== DEBUG INFO ==="
+          echo "=== BUILD ORCHESTRATOR DEBUG INFO ==="
           echo "Target Environment: $TARGET_ENV_NAME"
           echo "Repository Name: ${{ inputs.repo_name }}"
-          echo "ACR Registry: $ACR_REGISTRY"
 
+          # Get values from rules workflow (already determined)
           if [[ "$TARGET_ENV_NAME" == "dev" ]]; then
-            IMAGE_TAG="dev"
-            AKS_NAMESPACE="dev"
+            IMAGE_TAG="${{ vars.IMAGE_TAG_NP }}"
+            AKS_NAMESPACE="${{ vars.NAMESPACE_NAME_NP }}"
           elif [[ "$TARGET_ENV_NAME" == "production" ]]; then
-            IMAGE_TAG="stable"
-            AKS_NAMESPACE="production"
+            IMAGE_TAG="${{ vars.IMAGE_TAG_PROD }}"
+            AKS_NAMESPACE="${{ vars.NAMESPACE_NAME_PROD }}"
           else
             echo "Error: Invalid target_environment '$TARGET_ENV_NAME'. Must be 'dev' or 'production'."
             exit 1 
           fi
 
-          FULL_IMAGE_NAME="$ACR_REGISTRY.azurecr.io/${{ inputs.repo_name }}:$IMAGE_TAG"
-
           echo "=== GENERATED VALUES ==="
           echo "Image Tag: $IMAGE_TAG"
           echo "AKS Namespace: $AKS_NAMESPACE"
-          echo "Full Image Name: $FULL_IMAGE_NAME"
 
-          echo "full_image_tag=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
+          # Output the values for the next job
+          echo "full_image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "aks_namespace=$AKS_NAMESPACE" >> $GITHUB_OUTPUT
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
   build_docker:
+    runs-on: ubuntu-latest
     needs: set_build_vars
-    uses: ./.github/workflows/build.docker.yml
-    with:
-      image_name: ${{ inputs.repo_name }}
-      image_tag: ${{ needs.set_build_vars.outputs.image_tag }}
-      acr_registry: ${{ vars.AZURE_CONTAINER_REGISTRY }}
-      acr_resource_group: ${{ vars.RESOURCE_GROUP }}
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and Push to ACR
+        run: |
+          set -e
+          
+          # Use known ACR name from variables
+          ACR_NAME="${{ vars.AZURE_CONTAINER_REGISTRY }}"
+          RESOURCE_GROUP="${{ vars.RESOURCE_GROUP }}"
+          
+          if [[ -z "$ACR_NAME" ]]; then
+            echo "Error: AZURE_CONTAINER_REGISTRY variable not set"
+            exit 1
+          fi
+          
+          IMAGE_TAG="${{ needs.set_build_vars.outputs.image_tag }}"
+          FULL_IMAGE_NAME="${ACR_NAME}.azurecr.io/${{ inputs.repo_name }}:${IMAGE_TAG}"
+          
+          echo "=== BUILD INFO ==="
+          echo "ACR Name: $ACR_NAME"
+          echo "Resource Group: $RESOURCE_GROUP"
+          echo "Image Name: ${{ inputs.repo_name }}"
+          echo "Image Tag: $IMAGE_TAG"
+          echo "Full Image Name: $FULL_IMAGE_NAME"
+          
+          # Build and push to ACR
+          echo "Building and pushing image: $FULL_IMAGE_NAME"
+          az acr build --image "$FULL_IMAGE_NAME" \
+                       --registry "$ACR_NAME" \
+                       --resource-group "$RESOURCE_GROUP" \
+                       --file Dockerfile \
+                       .
+          
+          echo "✅ Build completed successfully!"
+          echo "Image available at: $FULL_IMAGE_NAME"
