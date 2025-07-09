@@ -18,39 +18,21 @@ permissions:
 jobs:
   evaluate_ci_cd_rules:
     name: Evaluate Branch Rules
-    runs-on: ubuntu-latest
-    outputs:
-      should_run_build: ${{ steps.get_rules.outputs.should_run_build }}
-      should_run_deploy: ${{ steps.get_rules.outputs.should_run_deploy }}
-      target_environment: ${{ steps.get_rules.outputs.target_environment }}
-    steps:
-      - name: Call Rules Workflow
-        uses: ./.github/workflows/rules.yml
-        id: get_rules
-
+    uses: ./.github/workflows/rules.yml
 
   orchestrate_build:
     name: Orchestrate Build Stage
     needs: evaluate_ci_cd_rules
     if: needs.evaluate_ci_cd_rules.outputs.should_run_build == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      full_image_tag: ${{ steps.call_build_orchestrator.outputs.full_image_tag }}
-      aks_namespace: ${{ steps.call_build_orchestrator.outputs.aks_namespace }}
-
-    steps:
-      - name: Call Reusable Build Orchestrator Workflow
-        id: call_build_orchestrator
-        uses: ./.github/workflows/build-orchestrator.yml
-        with:
-          target_environment: ${{ needs.evaluate_ci_cd_rules.outputs.target_environment }}
-          repo_name: ${{ github.event.repository.name }}
-          sha: ${{ github.sha }}
-        secrets:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
+    uses: ./.github/workflows/build-orchestrator.yml
+    with:
+      target_environment: ${{ needs.evaluate_ci_cd_rules.outputs.target_environment }}
+      repo_name: ${{ github.event.repository.name }}
+      sha: ${{ github.sha }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   deploy_np:
     name: Deploy to Non-Production (Dev)
@@ -58,23 +40,18 @@ jobs:
     if: |
       needs.evaluate_ci_cd_rules.outputs.should_run_deploy == 'true' &&
       needs.evaluate_ci_cd_rules.outputs.target_environment == 'dev'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Call Reusable Deploy ACR Workflow (Non-Production)
-        uses: ./.github/workflows/deploy.acr.yml
-        with:
-          target_env_name: dev
-          image_full_tag: ${{ needs.orchestrate_build.outputs.full_image_tag }}
-          resource_group: ${{ vars.RESOURCE_GROUP }}
-          cluster_name: ${{ vars.CLUSTER_NAME }}
-          namespace: ${{ needs.orchestrate_build.outputs.aks_namespace }}
-        secrets:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+    uses: ./.github/workflows/deploy.acr.yml
+    with:
+      target_env_name: dev
+      image_full_tag: ${{ needs.orchestrate_build.outputs.full_image_tag }}
+      resource_group: ${{ vars.RESOURCE_GROUP }}
+      cluster_name: ${{ vars.CLUSTER_NAME }}
+      namespace: ${{ needs.orchestrate_build.outputs.aks_namespace }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   deploy_prod:
     name: Deploy to Production
@@ -82,19 +59,15 @@ jobs:
     if: |
       needs.evaluate_ci_cd_rules.outputs.should_run_deploy == 'true' &&
       needs.evaluate_ci_cd_rules.outputs.target_environment == 'production'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Call Reusable Deploy ACR Workflow (Production)
-        uses: ./.github/workflows/deploy.acr.yml
-        with:
-          target_env_name: production
-          image_full_tag: ${{ needs.orchestrate_build.outputs.full_image_tag }}
-          resource_group: ${{ vars.RESOURCE_GROUP }}
-          cluster_name: ${{ vars.CLUSTER_NAME }}
-          namespace: ${{ needs.orchestrate_build.outputs.aks_namespace }}
-        secrets:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: ./.github/workflows/deploy.acr.yml
+    with:
+      target_env_name: production
+      image_full_tag: ${{ needs.orchestrate_build.outputs.full_image_tag }}
+      resource_group: ${{ vars.RESOURCE_GROUP }}
+      cluster_name: ${{ vars.CLUSTER_NAME }}
+      namespace: ${{ needs.orchestrate_build.outputs.aks_namespace }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
