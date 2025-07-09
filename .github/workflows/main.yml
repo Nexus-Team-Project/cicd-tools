@@ -11,13 +11,18 @@ on:
         required: true
 
 permissions:
-  contents: read
+  contents: read 
   id-token: write
-  actions: write
+  actions: write 
 
 jobs:
   evaluate_ci_cd_rules:
     name: Evaluate Branch Rules
+    runs-on: ubuntu-latest # Add this line back
+    outputs: # Add this outputs block
+      should_run_build: ${{ jobs.evaluate_ci_cd_rules.outputs.should_run_build }}
+      should_run_deploy: ${{ jobs.evaluate_ci_cd_rules.outputs.should_run_deploy }}
+      target_environment: ${{ jobs.evaluate_ci_cd_rules.outputs.target_environment }}
     uses: ./.github/workflows/rules.yml
 
   orchestrate_build:

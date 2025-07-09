@@ -56,6 +56,9 @@ jobs:
           elif [[ "$TARGET_ENV_NAME" == "production" ]]; then
             IMAGE_TAG="stable"
             AKS_NAMESPACE="production"
+          else
+            echo "Error: Invalid target_environment '$TARGET_ENV_NAME'. Must be 'dev' or 'production'."
+            exit 1 
           fi
 
           FULL_IMAGE_NAME="$ACR_REGISTRY.azurecr.io/${{ inputs.repo_name }}:$IMAGE_TAG"
