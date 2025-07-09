@@ -9,12 +9,12 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, feat/add-ci]
+    branches: [main, dev]
 
 jobs:
   ci_cd:
     name: Build and Deploy
-    uses: YOUR_GITHUB_ORG/cicd-tools/.github/workflows/main.yml@build-basic-cicd
+    uses: YOUR_GITHUB_ORG/cicd-tools/.github/workflows/main.yml@main
     secrets: inherit
 ```
 
@@ -84,7 +84,7 @@ Add these secrets to your repository settings:
 
 ## How It Works
 
-1. **Push to `feat/add-ci`**: Builds image with `vars.IMAGE_TAG_NP` tag, deploys to `vars.NAMESPACE_NAME_NP` namespace
+1. **Push to `dev`**: Builds image with `vars.IMAGE_TAG_NP` tag, deploys to `vars.NAMESPACE_NAME_NP` namespace
 2. **Push to `main`**: Builds image with `vars.IMAGE_TAG_PROD` tag, deploys to `vars.NAMESPACE_NAME_PROD` namespace
 3. **Other branches**: No CI/CD runs
 
@@ -106,6 +106,6 @@ Add these variables to your repository/organization settings:
 1. Create a simple Node.js app with the health endpoints
 2. Add the Dockerfile and workflow file
 3. Set up the required GitHub variables
-4. Push to `feat/add-ci` branch
+4. Push to `dev` branch
 5. Check GitHub Actions tab for pipeline execution
 6. Verify deployment in AKS: `kubectl get pods -n <your-np-namespace>`

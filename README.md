@@ -18,7 +18,7 @@ The pipeline is designed to:
 
 | Branch | Environment | Image Tag | Namespace |
 |--------|-------------|-----------|-----------|
-| `feat/add-ci` | Development | `vars.IMAGE_TAG_NP` | `vars.NAMESPACE_NAME_NP` |
+| `dev` | Development | `vars.IMAGE_TAG_NP` | `vars.NAMESPACE_NAME_NP` |
 | `main` | Production | `vars.IMAGE_TAG_PROD` | `vars.NAMESPACE_NAME_PROD` |
 
 ## Quick Start
@@ -32,11 +32,11 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, feat/add-ci]
+    branches: [main, dev]
 
 jobs:
   ci_cd:
-    uses: YOUR_ORG/cicd-tools/.github/workflows/main.yml@build-basic-cicd
+    uses: YOUR_ORG/cicd-tools/.github/workflows/main.yml@main
     secrets: inherit
 ```
 
@@ -120,7 +120,7 @@ jobs:
 ### Environment-Specific Behavior
 
 The pipeline automatically:
-- Uses `dev` tag and namespace for `dev` and `feat/add-ci` branches
+- Uses `dev` tag and namespace for `dev` and `dev` branches
 - Uses `stable` tag and `production` namespace for `main` branch
 - Only deploys on supported branches
 - Skips deployment if build fails
@@ -154,7 +154,7 @@ The pipeline automatically:
 - Check if health endpoints are implemented
 
 ### Branch Not Triggering
-- Only `main`, `dev`, and `feat/add-ci` branches trigger CI/CD
+- Only `main`, `dev`, and `dev` branches trigger CI/CD
 - Only `push` events trigger the pipeline
 - Check branch name spelling
 

@@ -23,7 +23,7 @@ jobs:
   evaluate-rules:
     runs-on: ubuntu-latest
     # Only run this job if we're on the correct branches
-    if: github.ref_name == 'feat/add-ci' || github.ref_name == 'main'
+    if: github.ref_name == 'dev' || github.ref_name == 'main'
     outputs:
       should_run_build: ${{ steps.determine-rules.outputs.should_run_build }}
       should_run_deploy: ${{ steps.determine-rules.outputs.should_run_deploy }}
@@ -52,7 +52,7 @@ jobs:
           # Simple CI/CD: Build and Deploy only on push to specific branches
           if [[ "$EVENT_NAME" == "push" ]]; then
             case "$CURRENT_BRANCH_NAME" in
-              "feat/add-ci")
+              "dev")
                 SHOULD_RUN_BUILD="true"
                 SHOULD_RUN_DEPLOY="true"
                 TARGET_ENVIRONMENT="dev"
