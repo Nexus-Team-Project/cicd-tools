@@ -17,6 +17,7 @@ spec:
         app: ${APP_NAME}
         environment: ${NAMESPACE}
     spec:
+      serviceAccountName: keyvault-workload-sa
       containers:
       - name: ${APP_NAME}
         image: ${IMAGE_NAME}
