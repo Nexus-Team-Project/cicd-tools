@@ -35,6 +35,10 @@ spec:
           value: "${NAMESPACE}"
         - name: PORT
           value: "3000"
+        volumeMounts:
+        - mountPath: /mnt/secrets-store
+          name: secret-volume
+          readOnly: true
         livenessProbe:
           httpGet:
             path: /
@@ -59,3 +63,10 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 30
+      volumes: 
+      - name: secret-volume
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: nexus-keyvault
