@@ -1,4 +1,3 @@
-# Sample workflow for testing - this would go in the application repository
 name: CI/CD Pipeline
 
 on:

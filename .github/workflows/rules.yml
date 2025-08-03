@@ -32,7 +32,7 @@ jobs:
       - name: Determine Rules
         id: determine-rules
         run: |
-          set -e  # Exit on any error
+          set -e 
           
           SHOULD_RUN_BUILD="false"
           SHOULD_RUN_DEPLOY="false"
@@ -47,14 +47,13 @@ jobs:
           echo "Branch: $CURRENT_BRANCH_NAME"
           echo "Event: $EVENT_NAME"
 
-          # Simple CI/CD: Build and Deploy only on push to specific branches
           if [[ "$EVENT_NAME" == "push" ]]; then
             case "$CURRENT_BRANCH_NAME" in
               "dev")
                 SHOULD_RUN_BUILD="true"
                 SHOULD_RUN_DEPLOY="true"
                 TARGET_ENVIRONMENT="dev"
-                IMAGE_TAG="${{ vars.IMAGE_TAG_NP }}"
+                IMAGE_TAG="${{ vars.IMAGE_TAG_NP }}-${GITHUB_SHA:0:7}"
                 NAMESPACE="${{ vars.NAMESPACE_NAME_NP }}"
                 echo "✅ Configured for DEV environment"
                 ;;
@@ -62,7 +61,7 @@ jobs:
                 SHOULD_RUN_BUILD="true"
                 SHOULD_RUN_DEPLOY="true"
                 TARGET_ENVIRONMENT="production"
-                IMAGE_TAG="${{ vars.IMAGE_TAG_PROD }}"
+                IMAGE_TAG="${{ vars.IMAGE_TAG_PROD }}-${GITHUB_SHA:0:7}"
                 NAMESPACE="${{ vars.NAMESPACE_NAME_PROD }}"
                 echo "✅ Configured for PRODUCTION environment"
                 ;;
@@ -74,7 +73,6 @@ jobs:
             echo "❌ Event '$EVENT_NAME' does not trigger CI/CD (only 'push' events)"
           fi
 
-          # Output all variables
           echo "should_run_build=$SHOULD_RUN_BUILD" >> $GITHUB_OUTPUT
           echo "should_run_deploy=$SHOULD_RUN_DEPLOY" >> $GITHUB_OUTPUT
           echo "target_environment=$TARGET_ENVIRONMENT" >> $GITHUB_OUTPUT

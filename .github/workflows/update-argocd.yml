@@ -1,0 +1,161 @@
+name: Update ArgoCD GitOps Manifests
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        required: true
+        type: string
+        description: 'Application name (usually repository name)'
+      target_environment:
+        required: true
+        type: string
+        description: 'Target environment (dev/production)'
+      image_tag:
+        required: true
+        type: string
+        description: 'Docker image tag to deploy'
+      argocd_repo:
+        required: false
+        type: string
+        description: 'ArgoCD apps repository'
+        default: 'Nexus-Team-Project/argocd-apps'
+      argocd_repo_branch:
+        required: false
+        type: string
+        description: 'ArgoCD apps repository branch'
+        default: 'main'
+    secrets:
+      ARGOCD_REPO_TOKEN:
+        required: false
+        description: 'GitHub token with write access to ArgoCD repo'
+
+jobs:
+  update_manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ArgoCD Apps Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.argocd_repo }}
+          ref: ${{ inputs.argocd_repo_branch }}
+          token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+          path: argocd-apps
+
+      - name: Configure Git
+        run: |
+          cd argocd-apps
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update Application Manifests
+        id: update_manifests
+        run: |
+          cd argocd-apps
+          
+          APP_NAME="${{ inputs.app_name }}"
+          TARGET_ENV="${{ inputs.target_environment }}"
+          IMAGE_TAG="${{ inputs.image_tag }}"
+          ACR_NAME="${{ vars.AZURE_CONTAINER_REGISTRY }}"
+          
+          echo "=== GITOPS UPDATE INFO ==="
+          echo "App Name: $APP_NAME"
+          echo "Environment: $TARGET_ENV"
+          echo "Image Tag: $IMAGE_TAG"
+          echo "ACR Name: $ACR_NAME"
+          
+          if [[ "$TARGET_ENV" == "dev" ]]; then
+            MANIFEST_PATH="manifests/dev/$APP_NAME/k8s"
+          elif [[ "$TARGET_ENV" == "production" ]]; then
+            MANIFEST_PATH="manifests/prod/$APP_NAME/k8s"
+          else
+            echo "Error: Invalid target_environment '$TARGET_ENV'. Must be 'dev' or 'production'."
+            exit 1
+          fi
+          
+          echo "Manifest Path: $MANIFEST_PATH"
+          
+          if [[ ! -d "$MANIFEST_PATH" ]]; then
+            echo "❌ Application k8s directory does not exist: $MANIFEST_PATH"
+            echo "Please create application manifests manually in the ArgoCD repository."
+            exit 1
+          fi
+          
+          DEPLOYMENT_FILE="$MANIFEST_PATH/deployment.yaml"
+          
+          if [[ ! -f "$DEPLOYMENT_FILE" ]]; then
+            echo "❌ Deployment file not found: $DEPLOYMENT_FILE"
+            exit 1
+          fi
+          
+          echo "Updating deployment file: $DEPLOYMENT_FILE"
+          
+          FULL_IMAGE_NAME="$ACR_NAME.azurecr.io/$APP_NAME:$IMAGE_TAG"
+          echo "New image: $FULL_IMAGE_NAME"
+          
+          if grep -q "image:" "$DEPLOYMENT_FILE"; then
+            sed -i "s|image: .*|image: $FULL_IMAGE_NAME|g" "$DEPLOYMENT_FILE"
+            echo "✅ Updated existing image reference"
+          else
+            echo "❌ No 'image:' field found in deployment.yaml"
+            exit 1
+          fi
+          
+          echo "=== UPDATED DEPLOYMENT ==="
+          grep -A2 -B2 "image:" "$DEPLOYMENT_FILE" || echo "Could not find image reference"
+          
+          if git diff --quiet; then
+            echo "⚠️  No changes detected in manifests"
+            echo "changes_made=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Changes detected in manifests"
+            echo "changes_made=true" >> $GITHUB_OUTPUT
+            
+            echo "=== CHANGES MADE ==="
+            git diff --no-index /dev/null "$DEPLOYMENT_FILE" | head -20 || git diff
+          fi
+
+      - name: Commit and Push Changes
+        if: steps.update_manifests.outputs.changes_made == 'true'
+        run: |
+          cd argocd-apps
+          
+          APP_NAME="${{ inputs.app_name }}"
+          TARGET_ENV="${{ inputs.target_environment }}"
+          IMAGE_TAG="${{ inputs.image_tag }}"
+          
+          git add .
+          
+          COMMIT_MSG="Deploy $APP_NAME:$IMAGE_TAG to $TARGET_ENV
+          
+          - Application: $APP_NAME
+          - Environment: $TARGET_ENV  
+          - Image Tag: $IMAGE_TAG
+          - Triggered by: ${{ github.actor }}
+          - Source: ${{ github.repository }}@${{ github.sha }}
+          "
+          
+          git commit -m "$COMMIT_MSG"
+          
+          echo "Pushing changes to ArgoCD repository..."
+          git push origin ${{ inputs.argocd_repo_branch }}
+          
+          echo "✅ Successfully updated GitOps manifests!"
+          echo "ArgoCD will detect these changes and deploy automatically."
+
+      - name: Summary
+        run: |
+          echo "=== GITOPS UPDATE SUMMARY ==="
+          echo "✅ Application: ${{ inputs.app_name }}"
+          echo "✅ Environment: ${{ inputs.target_environment }}"
+          echo "✅ Image Tag: ${{ inputs.image_tag }}"
+          echo "✅ Repository: ${{ inputs.argocd_repo }}"
+          echo ""
+          echo "🔄 ArgoCD will automatically detect the Git changes and deploy the application."
+          echo "🌐 Monitor deployment at: https://dev.nexus-online.net/argocd/"
+          
+          if [[ "${{ steps.update_manifests.outputs.changes_made }}" == "true" ]]; then
+            echo "📝 Changes were committed to the GitOps repository"
+          else
+            echo "⚠️  No changes were needed (image tag may already be current)"
+          fi
