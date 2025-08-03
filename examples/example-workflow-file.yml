@@ -1,4 +1,5 @@
-# Sample workflow for testing - this would go in the application repository
+# Sample workflow for testing ArgoCD pipeline - this would go in the application repository
+# Uses feat/deploy-with-argo branch for testing new ArgoCD functionality
 name: CI/CD Pipeline
 
 on:
@@ -15,5 +16,5 @@ permissions:
 jobs:
   call-full-pipeline:
     name: Run Full CI/CD Pipeline
-    uses: Nexus-Team-Project/cicd-tools/.github/workflows/main.yml@main
+    uses: Nexus-Team-Project/cicd-tools/.github/workflows/main.yml@feat/deploy-with-argo
     secrets: inherit

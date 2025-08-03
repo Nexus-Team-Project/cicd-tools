@@ -16,6 +16,17 @@ on:
         required: false
         type: string
         description: 'AKS cluster name (if not provided, will use vars.CLUSTER_NAME)'
+      # GitOps specific inputs
+      argocd_repo:
+        required: false
+        type: string
+        description: 'ArgoCD apps repository (default: Nexus-Team-Project/argocd-apps)'
+        default: 'Nexus-Team-Project/argocd-apps'
+      argocd_repo_branch:
+        required: false
+        type: string
+        description: 'ArgoCD apps repository branch (default: main)'
+        default: 'main'
     secrets:
       AZURE_CLIENT_ID:
         required: true
@@ -23,6 +34,10 @@ on:
         required: true
       AZURE_SUBSCRIPTION_ID:
         required: true
+      # GitHub token for updating ArgoCD repo
+      ARGOCD_REPO_TOKEN:
+        required: false
+        description: 'GitHub token with write access to ArgoCD repo (if not provided, will use GITHUB_TOKEN)'
 
 permissions:
   contents: read
@@ -35,7 +50,7 @@ jobs:
     uses: ./.github/workflows/rules.yml
 
   orchestrate_build:
-    name: Orchestrate Build Stage
+    name: Build Container Image
     needs: evaluate_ci_cd_rules
     if: needs.evaluate_ci_cd_rules.outputs.should_run_build == 'true'
     uses: ./.github/workflows/build-orchestrator.yml
@@ -47,18 +62,16 @@ jobs:
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-  deploy:
-    name: Deploy to Environment
+  update_argocd_manifests:
+    name: Update GitOps Manifests
     needs: [evaluate_ci_cd_rules, orchestrate_build]
     if: needs.evaluate_ci_cd_rules.outputs.should_run_deploy == 'true'
-    uses: ./.github/workflows/deploy.aks.yml
+    uses: ./.github/workflows/update-argocd.yml
     with:
-      target_env_name: ${{ needs.evaluate_ci_cd_rules.outputs.target_environment }}
-      namespace: ${{ needs.evaluate_ci_cd_rules.outputs.namespace }}
-      cluster_name: ${{ vars.CLUSTER_NAME }}
-      resource_group: ${{ vars.RESOURCE_GROUP }}
-      image_full_tag: ${{ github.event.repository.name }}:${{ needs.evaluate_ci_cd_rules.outputs.image_tag }}
+      app_name: ${{ github.event.repository.name }}
+      target_environment: ${{ needs.evaluate_ci_cd_rules.outputs.target_environment }}
+      image_tag: ${{ needs.evaluate_ci_cd_rules.outputs.image_tag }}
+      argocd_repo: ${{ inputs.argocd_repo }}
+      argocd_repo_branch: ${{ inputs.argocd_repo_branch }}
     secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARGOCD_REPO_TOKEN: ${{ secrets.ARGOCD_REPO_TOKEN }}
