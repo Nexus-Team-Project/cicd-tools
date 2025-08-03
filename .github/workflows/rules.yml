@@ -50,7 +50,7 @@ jobs:
           # Simple CI/CD: Build and Deploy only on push to specific branches
           if [[ "$EVENT_NAME" == "push" ]]; then
             case "$CURRENT_BRANCH_NAME" in
-              "dev")
+              "dev"|"test-argo-pipeline")
                 SHOULD_RUN_BUILD="true"
                 SHOULD_RUN_DEPLOY="true"
                 TARGET_ENVIRONMENT="dev"
