@@ -4,9 +4,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: ["dev"]
+    branches: ["dev", "test-argo-pipeline"]
   pull_request:
-    branches: ["main", "dev"]
+    branches: ["main", "dev", "test-argo-pipeline"]
 
 permissions:
   contents: read
