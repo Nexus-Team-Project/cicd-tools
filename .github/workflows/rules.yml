@@ -54,8 +54,8 @@ jobs:
                 SHOULD_RUN_BUILD="true"
                 SHOULD_RUN_DEPLOY="true"
                 TARGET_ENVIRONMENT="dev"
-                IMAGE_TAG="${{ vars.IMAGE_TAG_NP }}"
-                NAMESPACE="${{ vars.NAMESPACE_NAME_NP }}"
+                IMAGE_TAG="${{ vars.IMAGE_TAG_NP }}-${GITHUB_SHA:0:7}"
+                NAMESPACE="${{ vars.NAMESPACE_NAME_NP }}-${GITHUB_SHA:0:7}"
                 echo "✅ Configured for DEV environment"
                 ;;
               "main")
