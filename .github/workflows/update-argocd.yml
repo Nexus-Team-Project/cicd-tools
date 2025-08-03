@@ -57,20 +57,18 @@ jobs:
           TARGET_ENV="${{ inputs.target_environment }}"
           IMAGE_TAG="${{ inputs.image_tag }}"
           ACR_NAME="${{ vars.AZURE_CONTAINER_REGISTRY }}"
-          APP_PORT="${{ vars.APP_PORT || '3000' }}"
           
           echo "=== GITOPS UPDATE INFO ==="
           echo "App Name: $APP_NAME"
           echo "Environment: $TARGET_ENV"
           echo "Image Tag: $IMAGE_TAG"
           echo "ACR Name: $ACR_NAME"
-          echo "App Port: $APP_PORT"
           
-          # Determine manifest path based on environment
+          # Determine manifest path based on environment (with k8s subdirectory)
           if [[ "$TARGET_ENV" == "dev" ]]; then
-            MANIFEST_PATH="manifests/dev/$APP_NAME"
+            MANIFEST_PATH="manifests/dev/$APP_NAME/k8s"
           elif [[ "$TARGET_ENV" == "production" ]]; then
-            MANIFEST_PATH="manifests/prod/$APP_NAME"
+            MANIFEST_PATH="manifests/prod/$APP_NAME/k8s"
           else
             echo "Error: Invalid target_environment '$TARGET_ENV'. Must be 'dev' or 'production'."
             exit 1
@@ -78,29 +76,11 @@ jobs:
           
           echo "Manifest Path: $MANIFEST_PATH"
           
-          # Check if application directory exists
+          # Check if application k8s directory exists
           if [[ ! -d "$MANIFEST_PATH" ]]; then
-            echo "⚠️  Application directory does not exist: $MANIFEST_PATH"
-            echo "Creating application manifests from templates..."
-            
-            # Create directory
-            mkdir -p "$MANIFEST_PATH"
-            
-            # Generate manifests using the existing script if available
-            if [[ -f "generate-manifests.sh" ]]; then
-              # Update config for this app
-              cat > config.sh << EOF
-          APP_NAME="$APP_NAME"
-          PORT="$APP_PORT"
-          EOF
-              
-              # Run generation script
-              chmod +x generate-manifests.sh
-              ./generate-manifests.sh
-            else
-              echo "❌ No generate-manifests.sh script found. Please create application manifests manually."
-              exit 1
-            fi
+            echo "❌ Application k8s directory does not exist: $MANIFEST_PATH"
+            echo "Please create application manifests manually in the ArgoCD repository."
+            exit 1
           fi
           
           # Update image tag in deployment.yaml
