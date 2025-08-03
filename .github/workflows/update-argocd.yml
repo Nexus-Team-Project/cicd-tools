@@ -39,7 +39,7 @@ jobs:
         with:
           repository: ${{ inputs.argocd_repo }}
           ref: ${{ inputs.argocd_repo_branch }}
-          token: ${{ secrets.ARGOCD_REPO_TOKEN || github.token }}
+          token: ${{ secrets.ARGOCD_REPO_TOKEN }}
           path: argocd-apps
 
       - name: Configure Git
@@ -64,7 +64,6 @@ jobs:
           echo "Image Tag: $IMAGE_TAG"
           echo "ACR Name: $ACR_NAME"
           
-          # Determine manifest path based on environment (with k8s subdirectory)
           if [[ "$TARGET_ENV" == "dev" ]]; then
             MANIFEST_PATH="manifests/dev/$APP_NAME/k8s"
           elif [[ "$TARGET_ENV" == "production" ]]; then
@@ -76,14 +75,12 @@ jobs:
           
           echo "Manifest Path: $MANIFEST_PATH"
           
-          # Check if application k8s directory exists
           if [[ ! -d "$MANIFEST_PATH" ]]; then
             echo "❌ Application k8s directory does not exist: $MANIFEST_PATH"
             echo "Please create application manifests manually in the ArgoCD repository."
             exit 1
           fi
           
-          # Update image tag in deployment.yaml
           DEPLOYMENT_FILE="$MANIFEST_PATH/deployment.yaml"
           
           if [[ ! -f "$DEPLOYMENT_FILE" ]]; then
@@ -93,13 +90,10 @@ jobs:
           
           echo "Updating deployment file: $DEPLOYMENT_FILE"
           
-          # Create full image name
           FULL_IMAGE_NAME="$ACR_NAME.azurecr.io/$APP_NAME:$IMAGE_TAG"
           echo "New image: $FULL_IMAGE_NAME"
           
-          # Update image in deployment.yaml using sed
           if grep -q "image:" "$DEPLOYMENT_FILE"; then
-            # Replace existing image line
             sed -i "s|image: .*|image: $FULL_IMAGE_NAME|g" "$DEPLOYMENT_FILE"
             echo "✅ Updated existing image reference"
           else
@@ -107,11 +101,9 @@ jobs:
             exit 1
           fi
           
-          # Verify the change
           echo "=== UPDATED DEPLOYMENT ==="
           grep -A2 -B2 "image:" "$DEPLOYMENT_FILE" || echo "Could not find image reference"
           
-          # Check if there are any changes to commit
           if git diff --quiet; then
             echo "⚠️  No changes detected in manifests"
             echo "changes_made=false" >> $GITHUB_OUTPUT
@@ -119,7 +111,6 @@ jobs:
             echo "✅ Changes detected in manifests"
             echo "changes_made=true" >> $GITHUB_OUTPUT
             
-            # Show what changed
             echo "=== CHANGES MADE ==="
             git diff --no-index /dev/null "$DEPLOYMENT_FILE" | head -20 || git diff
           fi
@@ -133,11 +124,9 @@ jobs:
           TARGET_ENV="${{ inputs.target_environment }}"
           IMAGE_TAG="${{ inputs.image_tag }}"
           
-          # Add all changes
           git add .
           
-          # Create commit message
-          COMMIT_MSG="🚀 Deploy $APP_NAME:$IMAGE_TAG to $TARGET_ENV
+          COMMIT_MSG="Deploy $APP_NAME:$IMAGE_TAG to $TARGET_ENV
           
           - Application: $APP_NAME
           - Environment: $TARGET_ENV  
@@ -146,10 +135,8 @@ jobs:
           - Source: ${{ github.repository }}@${{ github.sha }}
           "
           
-          # Commit changes
           git commit -m "$COMMIT_MSG"
           
-          # Push changes
           echo "Pushing changes to ArgoCD repository..."
           git push origin ${{ inputs.argocd_repo_branch }}
           

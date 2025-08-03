@@ -3,7 +3,6 @@ name: Reusable Main CI/CD Pipeline
 on:
   workflow_call:
     inputs:
-      # Allow customization of ACR and AKS settings (optional)
       acr_name:
         required: false
         type: string
@@ -16,7 +15,6 @@ on:
         required: false
         type: string
         description: 'AKS cluster name (if not provided, will use vars.CLUSTER_NAME)'
-      # GitOps specific inputs
       argocd_repo:
         required: false
         type: string
@@ -34,7 +32,6 @@ on:
         required: true
       AZURE_SUBSCRIPTION_ID:
         required: true
-      # GitHub token for updating ArgoCD repo
       ARGOCD_REPO_TOKEN:
         required: false
         description: 'GitHub token with write access to ArgoCD repo (if not provided, will use GITHUB_TOKEN)'
@@ -57,6 +54,8 @@ jobs:
     with:
       target_environment: ${{ needs.evaluate_ci_cd_rules.outputs.target_environment }}
       repo_name: ${{ github.event.repository.name }}
+      image_tag: ${{ needs.evaluate_ci_cd_rules.outputs.image_tag }}
+      namespace: ${{ needs.evaluate_ci_cd_rules.outputs.namespace }}
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}

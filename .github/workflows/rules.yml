@@ -32,7 +32,7 @@ jobs:
       - name: Determine Rules
         id: determine-rules
         run: |
-          set -e  # Exit on any error
+          set -e 
           
           SHOULD_RUN_BUILD="false"
           SHOULD_RUN_DEPLOY="false"
@@ -47,7 +47,6 @@ jobs:
           echo "Branch: $CURRENT_BRANCH_NAME"
           echo "Event: $EVENT_NAME"
 
-          # Simple CI/CD: Build and Deploy only on push to specific branches
           if [[ "$EVENT_NAME" == "push" ]]; then
             case "$CURRENT_BRANCH_NAME" in
               "dev")
@@ -74,7 +73,6 @@ jobs:
             echo "❌ Event '$EVENT_NAME' does not trigger CI/CD (only 'push' events)"
           fi
 
-          # Output all variables
           echo "should_run_build=$SHOULD_RUN_BUILD" >> $GITHUB_OUTPUT
           echo "should_run_deploy=$SHOULD_RUN_DEPLOY" >> $GITHUB_OUTPUT
           echo "target_environment=$TARGET_ENVIRONMENT" >> $GITHUB_OUTPUT
